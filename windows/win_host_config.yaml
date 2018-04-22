@@ -1,0 +1,10 @@
+#ps1_sysnative
+$ErrorActionPreference = 'SilentlyContinue'
+netsh advfirewall set allprofiles state off
+set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+set-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System' -name "dontdisplaylastusername" -Value 1
+(new-object System.net.WebClient).DownloadFile("https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US","C:\firefox.exe")
+& c:\firefox.exe -ms
+net user /add $username $password /y
+net localgroup administrators /add $username
+exit 1001

@@ -1,0 +1,9 @@
+= heat templates for basic yaml files
+
+This is a file repository for basic heat files.
+
+Todo:
+
+instance for windows AD administration
+
+Security Onion automated setup, 

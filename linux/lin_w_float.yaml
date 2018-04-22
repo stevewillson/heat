@@ -1,0 +1,108 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Setup for an OpenStack system. The goal of this system will be to use
+  letsencrypt to give it a publicly available address.
+
+parameters:
+
+  inst_name:
+    type: string
+    default: host
+  flavor:
+    type: string
+    default: cy.large
+  image:
+    type: string
+    default: Debian Stretch
+  username:
+    type: string
+    default: user
+  password:
+    type: string
+    label: Password
+    description: Set root/admin password for instances. 
+    hidden: true
+    default: password
+
+resources:
+
+  router1:
+    type: OS::Neutron::Router    
+    properties:
+      name: router1
+      external_gateway_info:
+        network: public
+
+  router_interface1:
+    type:  OS::Neutron::RouterInterface
+    properties:
+      router: { get_resource: router1 }
+      subnet: { get_resource: subnet1 }
+
+  network1:
+    type: OS::Neutron::Net
+    properties:
+      name: network1
+      port_security_enabled: false
+
+  subnet1:
+    type: OS::Neutron::Subnet
+    properties:
+      cidr: 192.168.0.0/24
+      network: { get_resource: network1 }
+      name: subnet1
+      dns_nameservers: [ "10.50.255.254" ]
+      gateway_ip: 192.168.0.1
+
+  float_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: network1 }
+      fixed_ips:
+        - subnet_id: { get_resource: subnet1 }
+      port_security_enabled: false
+
+  float_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: public
+
+  float_ip_assoc:
+    type: OS::Neutron::FloatingIPAssociation
+    properties:
+      floatingip_id: { get_resource: float_ip }
+      port_id: { get_resource: float_port }
+
+  host_w_float:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: inst_name }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: 
+        - port: { get_resource: float_port }
+      user_data_format: RAW
+      user_data: { get_resource: host_config }
+
+  host_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #!/bin/bash
+            export DEBIAN_FRONTEND=noninteractive
+            echo 127.0.0.1 $(hostname) >> /etc/hosts
+            # add a user specified by the host
+            useradd $username -m -U -s /bin/bash
+            echo "$username:$password" | chpasswd
+            usermod -aG sudo $username
+            echo "root:$password" | chpasswd
+            # allow ssh connections
+            sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+            reboot
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
+

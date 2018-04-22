@@ -1,0 +1,57 @@
+heat_template_version: '2016-10-14'
+
+description: >
+  Single Linux instance with a network, router, and subnet 
+  Version: 28FEB18
+
+parameters:
+  name:
+    type: string
+    default: lin_inst
+  flavor:
+    type: string
+    default: m1.medium
+  image:
+    type: string
+    default: "Debian Jessie"
+  username:
+    type: string
+    default: user
+  password:
+    type: string
+    hidden: true
+    default: pass
+  network:
+    type: string
+    default: network
+
+resources:
+
+  host:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: name }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: 
+        - network: { get_param: network }
+      user_data_format: RAW
+      user_data: { get_resource: host_config }
+
+  host_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #!/bin/bash
+            export DEBIAN_FRONTEND=noninteractive
+            echo 127.0.0.1 $(hostname) >> /etc/hosts
+            useradd $username -m -U -s /bin/bash
+            echo "$username:$password" | chpasswd
+            usermod -aG sudo $username
+            shutdown -r now
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
+

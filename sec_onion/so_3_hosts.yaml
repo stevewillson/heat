@@ -1,0 +1,117 @@
+heat_template_version: '2016-10-14'
+
+description: >
+  Security Onion Instance, this will also create a new network for the SO instance
+  Version: 29MAR18
+
+parameters:
+  name:
+    type: string
+    default: so_inst
+  flavor:
+    type: string
+    default: cy.mega
+  image:
+    type: string
+    default: "Ubuntu 14.04"
+  username:
+    type: string
+    default: user
+  password:
+    type: string
+    default: pass
+
+resources:
+
+  network:
+    type: OS::Neutron::Net
+    properties:
+      name: network
+      port_security_enabled: false
+
+  router:
+    type: OS::Neutron::Router    
+    properties:
+      name: router
+      external_gateway_info:
+        network: public
+
+  router_interface:
+    type:  OS::Neutron::RouterInterface
+    properties:
+      router: { get_resource: router }
+      subnet: { get_resource: subnet }
+
+  subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      cidr: 192.168.100.0/24
+      network: { get_resource: network }
+      name: subnet
+      dns_nameservers: [ "10.50.255.254" ]
+      gateway_ip: 192.168.100.1
+
+  host_master:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: name }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: 
+        - network: { get_resource: network }
+      user_data_format: RAW
+      user_data: { get_resource: host_config }
+
+  host_sensor_1:
+    type: OS::Nova::Server
+    properties:
+      name: so_sensor_1
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: 
+        - network: { get_resource: network }
+      user_data_format: RAW
+      user_data: { get_resource: host_config }
+
+  host_sensor_2:
+    type: OS::Nova::Server
+    properties:
+      name: so_sensor_2
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: 
+        - network: { get_resource: network }
+      user_data_format: RAW
+      user_data: { get_resource: host_config }
+
+  host_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #!/bin/bash
+            export DEBIAN_FRONTEND=noninteractive
+            echo 127.0.0.1 $(hostname) >> /etc/hosts
+            # disable the local package cache for now
+            #echo 'Acquire::http::Proxy "http://pkg-cache.bbh.cyberschool.army.mil:3142";' > /etc/apt/apt.conf.d/99proxy
+            useradd $username -m -U -s /bin/bash
+            echo "$username:$password" | chpasswd
+            usermod -aG sudo $username
+            echo "debconf debconf/frontend select noninteractive" | debconf-set-selections
+            rm -rf /var/lib/apt/lists/*
+            apt-get update
+            #Add the Security Onion stable repository:
+            apt-get -y install software-properties-common
+            add-apt-repository -y ppa:securityonion/stable
+            apt-get update
+            #Install the securityonion-all metapackage:
+            apt-get -y install securityonion-all syslog-ng-core
+            apt-get -y install securityonion-elastic
+            so-elastic-download
+            so-elastic-configure
+            shutdown -r now
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
+

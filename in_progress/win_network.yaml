@@ -1,0 +1,147 @@
+heat_template_version: 2015-10-15
+
+description: Instance with 1 windows server and a number of windows hosts
+
+parameters:
+
+  student_id:
+    type: string
+    label: Student ID
+    description: Number used for the second octet of the IP address
+    default: 0
+
+  password:
+    type: string
+    description: password for windows VMs
+    hidden: true
+    default: pass
+
+  username:
+    type: string
+    default: user
+
+  num_win_hosts:
+    type: number
+    label: Choose the number of Windows Host VMs you wish to spawn
+    description: This will determine the number of Windows Host VMs you will spawn. Hostnames will be in the form [Base Hostname]-win-[num], where num is an iterator starting at 1.
+    default: 1
+    constraints:
+      - range: { min: 0, max: 9 }
+
+resources:
+
+  stu-network:
+    type: OS::Neutron::Net
+    properties:
+      name:
+        str_replace:
+          template: username_network
+          params:
+            username: { get_param: username }
+
+  stu-subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      allocation_pools:
+        - start:
+            str_replace:
+              template: 10.studentID.0.5
+              params:
+                studentID: { get_param: student_id }
+          end:
+            str_replace:
+              template: 10.studentID.0.250
+              params:
+                studentID: { get_param: student_id }
+      cidr:
+        str_replace:
+          template: 10.studentID.0.0/24
+          params:
+            studentID: { get_param: student_id }
+      gateway_ip:
+        str_replace:
+          template: 10.studentID.0.254
+          params:
+            studentID: { get_param: student_id }
+      network: { get_resource: stu-network }
+      dns_nameservers: [ "10.50.255.254" ]
+      name:
+        str_replace:
+          template: username_subnet
+          params:
+            username: { get_param: username }
+
+  stu-router:
+    type: OS::Neutron::Router    
+    properties:
+      name:
+        str_replace:
+          template: username_router
+          params:
+            username: { get_param: username }
+      external_gateway_info: { "network": public }
+
+  stu-router-interface:
+    type:  OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: stu-router }       
+      subnet_id: { get_resource: stu-subnet }
+
+  windows_resource_group:
+    type:  OS::Heat::ResourceGroup
+    depends_on: stu-network
+    properties:
+      count:
+        str_replace:
+          template: num_win_hosts
+          params:
+            num_win_hosts: { get_param : num_win_hosts }
+      resource_def:
+        type: OS::Nova::Server
+        properties:
+          name: 
+            str_replace:
+              template: base-win-%index%
+              params:
+                base: { get_param: username }
+          image: "Windows 10 - New"
+          flavor: cy.large
+          networks: 
+            - network: { get_resource: stu-network }
+          user_data:
+            str_replace:
+              template: { get_file: "https://git.cybbh.space/steve.willson/heat/raw/master/win_host_config.yaml" }
+              params: 
+                $username: { get_param: username }
+                $password: { get_param: password }
+          user_data_format: RAW
+
+  win_server:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name: Windows_Server
+      image: "Windows Server 2016"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+      user_data_format: RAW
+      user_data: { get_resource: win_server_config }
+
+  win_server_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #ps1_sysnative
+            $ErrorActionPreference = 'SilentlyContinue'
+            netsh advfirewall set allprofiles state off
+            set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+            set-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System' -name "dontdisplaylastusername" -Value 1
+            net user /add $username $password /y
+            net localgroup administrators /add $username
+            exit 1001
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
