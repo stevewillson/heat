@@ -1,0 +1,133 @@
+heat_template_version: 2015-10-15
+
+description: Instance with 2 windows 7 host
+
+parameters:
+
+  student_id:
+    type: string
+    label: Student ID
+    description: Number used for the second octet of the IP address
+    default: 0
+
+  password:
+    type: string
+    description: password for windows VMs
+    hidden: true
+    default: pass
+
+  username:
+    type: string
+    default: user
+
+resources:
+
+  stu-network:
+    type: OS::Neutron::Net
+    properties:
+      name:
+        str_replace:
+          template: username_network
+          params:
+            username: { get_param: username }
+
+  stu-subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      allocation_pools:
+        - start:
+            str_replace:
+              template: 10.studentID.0.5
+              params:
+                studentID: { get_param: student_id }
+          end:
+            str_replace:
+              template: 10.studentID.0.250
+              params:
+                studentID: { get_param: student_id }
+      cidr:
+        str_replace:
+          template: 10.studentID.0.0/24
+          params:
+            studentID: { get_param: student_id }
+      gateway_ip:
+        str_replace:
+          template: 10.studentID.0.254
+          params:
+            studentID: { get_param: student_id }
+      network: { get_resource: stu-network }
+      dns_nameservers: [ "10.50.255.254" ]
+      name:
+        str_replace:
+          template: username_subnet
+          params:
+            username: { get_param: username }
+
+  stu-router:
+    type: OS::Neutron::Router    
+    properties:
+      name:
+        str_replace:
+          template: username_router
+          params:
+            username: { get_param: username }
+      external_gateway_info: { "network": public }
+
+  stu-router-interface:
+    type:  OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: stu-router }       
+      subnet_id: { get_resource: stu-subnet }
+
+  win_host1:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_win_host1
+          params:
+            username: { get_param: username }
+      image: "Windows 7"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+      user_data_format: RAW
+      user_data: { get_resource: win_host_config }
+
+  win_host2:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_win_host2
+          params:
+            username: { get_param: username }
+      image: "Windows 7"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+      user_data_format: RAW
+      user_data: { get_resource: win_host_config }
+
+  win_host_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #ps1_sysnative
+            $ErrorActionPreference = 'SilentlyContinue'
+            netsh advfirewall set allprofiles state off
+            set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+            set-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System' -name "dontdisplaylastusername" -Value 1
+            (new-object System.net.WebClient).DownloadFile("https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US","C:\firefox.exe")
+            & c:\firefox.exe -ms
+            net user /add $username $password /y
+            net localgroup administrators /add $username
+            exit 1001
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
+
