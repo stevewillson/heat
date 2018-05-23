@@ -1,6 +1,6 @@
 heat_template_version: 2015-10-15
 
-description: Instance with 1 windows server and three windows hosts
+description: Instance with 2 windows servers and three windows hosts
 
 parameters:
 
@@ -37,7 +37,7 @@ resources:
       allocation_pools:
         - start:
             str_replace:
-              template: 10.studentID.0.5
+              template: 10.studentID.0.50
               params:
                 studentID: { get_param: student_id }
           end:
@@ -92,6 +92,7 @@ resources:
       flavor: cy.large
       networks: 
         - network: { get_resource: stu-network }
+          fixed_ip: 10.1.0.5
       user_data_format: RAW
       user_data: { get_resource: win_host_config }
 
@@ -108,6 +109,7 @@ resources:
       flavor: cy.large
       networks: 
         - network: { get_resource: stu-network }
+          fixed_ip: 10.1.0.6
       user_data_format: RAW
       user_data: { get_resource: win_host_config }
 
@@ -124,6 +126,7 @@ resources:
       flavor: cy.large
       networks: 
         - network: { get_resource: stu-network }
+          fixed_ip: 10.1.0.7
       user_data_format: RAW
       user_data: { get_resource: win_host_config }
 
@@ -140,22 +143,41 @@ resources:
       flavor: cy.large
       networks: 
         - network: { get_resource: stu-network }
+          fixed_ip: 10.1.0.20
       user_data_format: RAW
       user_data: { get_resource: win_host_config }
 
-  win_server:
+  win_server1:
     type: OS::Nova::Server
     depends_on: stu-network
     properties:
       name:
         str_replace:
-          template: username_server
+          template: username_server1
           params:
             username: { get_param: username }
       image: "Windows 2016"
       flavor: cy.large
       networks: 
         - network: { get_resource: stu-network }
+          fixed_ip: 10.1.0.10
+      user_data_format: RAW
+      user_data: { get_resource: win_server_config }
+
+  win_server2:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_server2
+          params:
+            username: { get_param: username }
+      image: "Windows 2016"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.1.0.15
       user_data_format: RAW
       user_data: { get_resource: win_server_config }
 
@@ -176,6 +198,9 @@ resources:
             # Add a user and set the password specified by the username and password variables, add that user to the administrators group
             net user /add $username $password /y
             net localgroup administrators /add $username
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+            Install-Module -Name xActiveDirectory -Force
+            Install-Module -Name xPSDesiredStateConfiguration -Force
             # Set exit code to '0' - Normal completion of script
             exit 0
           params:
@@ -194,6 +219,8 @@ resources:
             set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
             New-LocalUser -Name "$username" -Description "User added by initial script" -NoPassword
             Add-LocalGroupMember -Group "Administrators" -Member "$username"
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+            Install-Module -Name xActiveDirectory -Force
             exit 0
           params:
             $username: { get_param: username }
