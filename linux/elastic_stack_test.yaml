@@ -109,8 +109,10 @@ resources:
             # update apt
             apt-get update
             apt-get install -y git
+            cd /home/$username
             # clone the git repo with elastic stack docker containers
             git clone https://github.com/stevewillson/elastic_stack_test.git
+            chown -R $username:$username elastic_stack_test
             cd elastic_stack_test
             # download docker
             chmod +x ./setup_docker.sh
