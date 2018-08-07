@@ -1,0 +1,63 @@
+heat_template_version: 2015-10-15
+
+description: Instance with 1 windows 7 host
+
+parameters:
+
+  student_id:
+    type: string
+    label: Student ID
+    description: Number used for the second octet of the IP address
+    default: 0
+
+  password:
+    type: string
+    description: password for windows VMs
+    hidden: true
+    default: pass
+
+  username:
+    type: string
+    default: user
+    
+  
+  network:
+    type: string
+    default: user_network
+
+resources:
+  win_host1:
+    type: OS::Nova::Server
+    properties:
+      name:
+        str_replace:
+          template: username_win7_host1
+          params:
+            username: { get_param: username }
+      image: "Windows 7"
+      flavor: cy.large
+      networks: 
+        - network: { get_param: network }
+      user_data_format: RAW
+      user_data: { get_resource: win_host_config }
+
+  win_host_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #ps1_sysnative
+            $ErrorActionPreference = 'SilentlyContinue'
+            netsh advfirewall set allprofiles state off
+            set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+            set-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System' -name "dontdisplaylastusername" -Value 1
+            (new-object System.net.WebClient).DownloadFile("https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US","C:\firefox.exe")
+            & c:\firefox.exe -ms
+            net user /add $username $password /y
+            net localgroup administrators /add $username
+            exit 1001
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
+

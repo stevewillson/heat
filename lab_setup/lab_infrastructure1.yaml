@@ -1,0 +1,324 @@
+heat_template_version: 2015-10-15
+
+#
+# Steve Willson
+# 28MAY18
+# lab_infrastructure1.yaml
+# Create a lab infrastructure with ePO (HBSS) and Security Center (ACAS), also use for ESM
+#
+# Resources required:
+# DC - 2 cores, 4 GB ram - IP: 10.0.0.10
+# MailServer - 2 cores, 4 GB ram - IP: 10.0.0.11
+# ESM - 2 cores, 8 GB ram - IP: 10.0.0.15
+# ePO - 2 cores, 4 GB ram - ? enough - IP: 10.0.0.20
+# Security Center - 2 cores, 4 GB ram - IP: 10.0.0.25
+# Nessus Scanner - 2 cores, 4 GB ram - IP: 10.0.0.26
+# Host1 - 2 cores, 4 GB ram - IP: 10.0.0.30
+# Host2 - 2 cores, 4 GB ram - IP: 10.0.0.31
+# DSC Controller - 2 cores, 4 GB ram - IP: 10.0.0.32
+# GNS3 - 2 cores, 4 GB ram ?
+#
+
+description: Lab setup, create 1 DC (Win2016), 1 mail server (TBD), ESM machine (working), 1 ePO server, 1 ACAS server, 1 scanner, 2 hosts (Win10), Total 10 machines
+
+parameters:
+
+  student_id:
+    type: string
+    label: Student ID
+    description: Number used for the second octet of the IP address
+    default: 0
+
+  password:
+    type: string
+    description: password for windows VMs
+    hidden: true
+    default: pass
+
+  username:
+    type: string
+    default: user
+
+resources:
+
+  stu-network:
+    type: OS::Neutron::Net
+    properties:
+      name:
+        str_replace:
+          template: username_network
+          params:
+            username: { get_param: username }
+
+  stu-subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      allocation_pools:
+        - start: 10.0.0.50
+          end: 10.0.0.250
+      cidr: 10.0.0.0/24
+      gateway_ip: 10.0.0.254
+      network: { get_resource: stu-network }
+      dns_nameservers: [ "10.50.255.254" ]
+      name:
+        str_replace:
+          template: username_subnet
+          params:
+            username: { get_param: username }
+
+  stu-router:
+    type: OS::Neutron::Router    
+    properties:
+      name:
+        str_replace:
+          template: username_router
+          params:
+            username: { get_param: username }
+      external_gateway_info: { "network": public }
+
+  stu-router-interface:
+    type:  OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: stu-router }       
+      subnet_id: { get_resource: stu-subnet }
+
+  win_dc_server:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_dc_server
+          params:
+            username: { get_param: username }
+      image: "Windows 2016"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.10
+      user_data_format: RAW
+      user_data: { get_resource: win_server_config }
+
+  win_mail_server:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_mail_server
+          params:
+            username: { get_param: username }
+      image: "Windows 2016"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.11
+      user_data_format: RAW
+      user_data: { get_resource: win_server_config }
+
+  win_esm_server:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_esm_server
+          params:
+            username: { get_param: username }
+      image: "Windows 2016"
+      flavor: mem.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.15
+      user_data_format: RAW
+      user_data: { get_resource: win_server_config }
+
+  win_epo_server:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_epo_server
+          params:
+            username: { get_param: username }
+      image: "Windows 2016"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.20
+      user_data_format: RAW
+      user_data: { get_resource: win_server_config }
+
+  win_sec_center_server:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_sec_center_server
+          params:
+            username: { get_param: username }
+      image: "Windows 2016"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.25
+      user_data_format: RAW
+      user_data: { get_resource: win_server_config }
+
+  nessus_scanner:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_nessus_scanner
+          params:
+            username: { get_param: username }
+      image: "Windows 10"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.26
+      user_data_format: RAW
+      user_data: { get_resource: win_host_config }
+
+  win_host1:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_win_host1
+          params:
+            username: { get_param: username }
+      image: "Windows 10"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.30
+      user_data_format: RAW
+      user_data: { get_resource: win_host_config }
+
+  win_host2:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_win_host2
+          params:
+            username: { get_param: username }
+      image: "Windows 10"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.31
+      user_data_format: RAW
+      user_data: { get_resource: win_host_config }
+
+  win_dsc_controller:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_win_dsc_controller
+          params:
+            username: { get_param: username }
+      image: "Windows 10"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.32
+      user_data_format: RAW
+      user_data: { get_resource: win_host_config }
+
+
+  gns3_machine:
+    type: OS::Nova::Server
+    depends_on: stu-network
+    properties:
+      name:
+        str_replace:
+          template: username_gns3
+          params:
+            username: { get_param: username }
+      image: "Debian Stretch"
+      flavor: cy.large
+      networks: 
+        - network: { get_resource: stu-network }
+          fixed_ip: 10.0.0.33
+      user_data_format: RAW
+      user_data: { get_resource: lin_host_config }
+
+  win_host_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #ps1_sysnative
+            $ErrorActionPreference = 'SilentlyContinue'
+            netsh advfirewall set allprofiles state off
+            # Enable Remote Desktop connections
+            set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+            # Download and install the latest version of Firefox
+            (new-object System.net.WebClient).DownloadFile("https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US","C:\firefox.exe")
+            & c:\firefox.exe -ms
+            # Add a user and set the password specified by the username and password variables, add that user to the administrators group
+            net user /add $username $password /y
+            net localgroup administrators /add $username
+            # Add the packages to set up desired state configuration for PowerShell
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+            Install-Module -Name xActiveDirectory -Force
+            Install-Module -Name xPSDesiredStateConfiguration -Force
+            # Set exit code to '0' - Normal completion of script
+            exit 0
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
+
+  win_server_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #ps1_sysnative
+            $ErrorActionPreference = 'SilentlyContinue'
+            netsh advfirewall set allprofiles state off
+            set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+            New-LocalUser -Name "$username" -Description "User added by initial script" -NoPassword
+            Add-LocalGroupMember -Group "Administrators" -Member "$username"
+            # Add the packages to set up desired state configuration for PowerShell
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+            Install-Module -Name xActiveDirectory -Force
+            # Set exit code to '0' - Normal completion of script
+            exit 0
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
+  
+  lin_host_config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config:
+        str_replace:
+          template: |
+            #!/bin/bash
+            export DEBIAN_FRONTEND=noninteractive
+            echo 127.0.0.1 $(hostname) >> /etc/hosts
+            # add a user specified by the host
+            useradd $username -m -U -s /bin/bash
+            echo "$username:$password" | chpasswd
+            usermod -aG sudo $username
+            echo "root:$password" | chpasswd
+            # allow ssh connections
+            sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+            reboot
+          params:
+            $username: { get_param: username }
+            $password: { get_param: password }
+
