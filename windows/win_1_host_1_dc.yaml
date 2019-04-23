@@ -18,6 +18,14 @@ parameters:
   username:
     type: string
     default: user
+    
+  image1:
+    type: string
+    default: "Windows 1809"
+    
+  image2:
+    type: string
+    default: "Windows Server 1809"
 
 resources:
 
@@ -87,7 +95,7 @@ resources:
           template: username_win_host
           params:
             username: { get_param: username }
-      image: "Windows 10"
+      image: { get_param: image1 }
       flavor: cy.large
       networks: 
         - network: { get_resource: stu-network }
@@ -103,7 +111,7 @@ resources:
           template: username_win_server
           params:
             username: { get_param: username }
-      image: "Windows 2016"
+      image: { get_param: image2 }
       flavor: cy.large
       networks: 
         - network: { get_resource: stu-network }
