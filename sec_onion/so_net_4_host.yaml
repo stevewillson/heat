@@ -1,1 +1,21 @@
 
+
+
+
+
+
+
+
+
+echo "debconf debconf/frontend select noninteractive" | sudo debconf-set-selections
+Clean apt list repository:
+sudo rm -rf /var/lib/apt/lists/*
+sudo apt-get update
+Add the Security Onion stable repository:
+sudo apt-get -y install software-properties-common
+sudo add-apt-repository -y ppa:securityonion/stable
+sudo apt-get update
+Install the securityonion-all metapackage:
+sudo apt-get -y install securityonion-all syslog-ng-core
+
+
